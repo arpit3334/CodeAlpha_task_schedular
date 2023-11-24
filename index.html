@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Scheduler</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+    }
+
+    header {
+      background-color: #333;
+      color: #fff;
+      padding: 1rem;
+      text-align: center;
+      display: flex;
+      justify-content: center;
+    }
+
+    header img {
+      height: 90px; /* Adjust the height as needed */
+    }
+    
+
+    main {
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .task {
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .task input {
+      margin-right: 10px;
+    }
+
+    button {
+      background-color: #2818b4;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .snooze-options {
+      margin-top: 10px;
+    }
+    footer{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: grey;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="logo.png" alt="Logo">
+    <h1>Task Scheduler</h1>
+  </header>
+  <main id="app">
+    <div>
+      <label for="taskInput">New Task:</label>
+      <input type="text" id="taskInput" v-model="newTask" @keyup.enter="addTask">
+      <label for="taskDeadline">Deadline:</label>
+      <input type="datetime-local" id="taskDeadline" v-model="newTaskDeadline">
+      <button @click="addTask">Add Task</button>
+    </div>
+    
+
+    <div v-if="tasks.length === 0">
+      <p>No tasks yet. Add a new task above.</p>
+    </div>
+
+    <div v-for="(task, index) in tasks" :key="index" class="task">
+      <div>
+        <input type="checkbox" v-model="task.completed">
+        <span :class="{ 'completed': task.completed }">{{ task.title }}</span>
+        <button @click="editTask(index)">Edit</button>
+      </div>
+      <div>
+        <button @click="removeTask(index)">Remove</button>
+        <div class="snooze-options">
+          <button @click="snoozeTask(index, 5)">Snooze 5m</button>
+          <button @click="snoozeTask(index, 10)">Snooze 10m</button>
+          <button @click="snoozeTask(index, 15)">Snooze 15m</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="editedTask !== null">
+      <h2>Edit Task</h2>
+      <label for="editedTaskInput">Task:</label>
+      <input type="text" id="editedTaskInput" v-model="newTask">
+      <label for="editedTaskDeadline">Deadline:</label>
+      <input type="datetime-local" id="editedTaskDeadline" v-model="newTaskDeadline">
+      <button @click="saveEditedTask">Save</button>
+    </div>
+    
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <footer>
+    <h1>Created by Arpit Developer</h1>
+</footer>
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        newTask: '',
+        newTaskDeadline: '',
+        editedTask: null,
+        tasks: []
+      },
+      methods: {
+        addTask() {
+          if (this.newTask.trim() === '' || this.newTaskDeadline === '') return;
+
+          const deadlineTimestamp = new Date(this.newTaskDeadline).getTime();
+          const now = new Date().getTime();
+
+          if (deadlineTimestamp <= now) {
+            alert('Please select a future date and time for the deadline.');
+            return;
+          }
+
+          const newTask = {
+            title: this.newTask,
+            completed: false,
+            deadline: new Date(this.newTaskDeadline)
+          };
+
+          this.tasks.push(newTask);
+
+          // Schedule notifications
+          const timeUntilDeadline = deadlineTimestamp - now;
+          this.scheduleNotification(newTask.title, timeUntilDeadline);
+          // Skip the email notification for simplicity
+
+          this.resetForm();
+        },
+
+        editTask(index) {
+          this.editedTask = index;
+          this.newTask = this.tasks[index].title;
+          this.newTaskDeadline = this.tasks[index].deadline.toISOString().slice(0, 16);
+        },
+
+        saveEditedTask() {
+          if (this.newTask.trim() === '' || this.newTaskDeadline === '') return;
+
+          const editedTask = {
+            title: this.newTask,
+            completed: this.tasks[this.editedTask].completed,
+            deadline: new Date(this.newTaskDeadline)
+          };
+
+          this.tasks.splice(this.editedTask, 1, editedTask);
+
+          // Schedule notifications
+          const now = new Date().getTime();
+          const timeUntilDeadline = editedTask.deadline.getTime() - now;
+          this.scheduleNotification(editedTask.title, timeUntilDeadline);
+          
+
+          this.resetForm();
+        },
+
+        removeTask(index) {
+          this.tasks.splice(index, 1);
+        },
+
+        snoozeTask(index, minutes) {
+          const snoozedTask = this.tasks[index];
+          const snoozeTime = new Date().getTime() + minutes * 60 * 1000;
+          snoozedTask.deadline = new Date(snoozeTime);
+
+          // Schedule notifications
+          const now = new Date().getTime();
+          const timeUntilDeadline = snoozedTask.deadline.getTime() - now;
+          this.scheduleNotification(snoozedTask.title, timeUntilDeadline);
+          
+        },
+
+        scheduleNotification(taskTitle, delay) {
+          // Schedule notification using the Notification API
+          if ('Notification' in window) {
+            Notification.requestPermission().then(permission => {
+              if (permission === 'granted') {
+                setTimeout(() => {
+                  new Notification('Task Reminder', {
+                    body: `Task "${taskTitle}" is due now!`,
+                    icon: 'logo.png' // Include a path to your notification icon
+                  });
+                }, delay);
+              }
+            });
+          }
+        },
+
+        resetForm() {
+          this.newTask = '';
+          this.newTaskDeadline = '';
+          this.editedTask = null;
+        }
+      }
+    });
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(registration => {
+          console.log('Service Worker registered with scope:', registration.scope);
+        })
+        .catch(error => {
+          console.error('Service Worker registration failed:', error);
+        });
+    }
+  </script>
+  
+</body>
+</html>
